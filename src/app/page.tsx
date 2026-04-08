@@ -7,7 +7,8 @@ import { extractDataFromImage } from '@/app/actions';
 import type { ExtractDataOutput } from '@/ai/schemas/form-extraction-schemas';
 import { ImageUploader } from '@/components/image-uploader';
 import { DataForm } from '@/components/data-form';
-import { ScanText, Download, History, Plus, Trash2, MoreVertical, Edit } from 'lucide-react';
+import { ScanText, Download, History, Plus, Trash2, MoreVertical, Edit, ShieldAlert, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { SheetOverview } from '@/components/sheet-overview';
 import {
@@ -38,7 +39,7 @@ import { Label } from '@/components/ui/label';
 export type Sheet = {
   id: string;
   name: string;
-  data: ExtractDataOutput[];
+  data: Record<string, any>[];
   createdAt: string;
 }
 
@@ -46,7 +47,9 @@ const STORAGE_KEY = 'nexscan-sheets';
 
 export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
-  const [currentExtractedData, setCurrentExtractedData] = useState<ExtractDataOutput | null>(null);
+  const [currentExtractedData, setCurrentExtractedData] = useState<Record<string, any> | null>(null);
+  const [usedFallback, setUsedFallback] = useState(false);
+  const [confidence, setConfidence] = useState<string | null>(null);
   
   const [sheets, setSheets] = useState<Sheet[]>([]);
   const [activeSheetId, setActiveSheetId] = useState<string | null>(null);
@@ -58,7 +61,7 @@ export default function Home() {
   const [isRenameSheetDialogOpen, setIsRenameSheetDialogOpen] = useState(false);
   const [isDuplicateWarningOpen, setIsDuplicateWarningOpen] = useState(false);
   const [newSheetName, setNewSheetName] = useState('');
-  const [pendingData, setPendingData] = useState<ExtractDataOutput | null>(null);
+  const [pendingData, setPendingData] = useState<Record<string, any> | null>(null);
 
 
   // Store form context for extraction
@@ -106,14 +109,13 @@ export default function Home() {
 
   const handleImageReady = async (dataUrl: string) => {
     // Clear previous extraction results when a new image is uploaded
-    setCurrentExtractedData(null); 
+    setCurrentExtractedData(null);
+    setUsedFallback(false);
+    setConfidence(null);
     
-    if (!dataUrl) {
-      return;
-    }
+    if (!dataUrl) return;
 
     setIsLoading(true);
-    setCurrentExtractedData(null);
 
     if (sheets.length === 0 || !activeSheetId) {
        handleOpenCreateSheetDialog();
@@ -136,16 +138,28 @@ export default function Home() {
       });
     } else {
       setCurrentExtractedData(result.data);
-      toast({
-        title: 'Extraction Successful',
-        description: 'Data has been extracted. Review and add to the active Excel sheet.',
-      });
+      const fallback = result.usedFallback ?? false;
+      setUsedFallback(fallback);
+      const conf = (result.data as any)?._confidence ?? null;
+      setConfidence(conf);
+
+      if (fallback) {
+        toast({
+          title: 'Switching to backup AI key...',
+          description: 'Primary extraction failed. Backup AI was used successfully.',
+        });
+      } else {
+        toast({
+          title: 'Extraction Successful',
+          description: 'Data has been extracted. Review and add to the active Excel sheet.',
+        });
+      }
     }
     
     setIsLoading(false);
   };
   
-  const handleAddToSheet = (data: ExtractDataOutput) => {
+  const handleAddToSheet = (data: Record<string, any>) => {
     if (!activeSheetId) {
       toast({
         variant: 'destructive',
@@ -168,7 +182,7 @@ export default function Home() {
     }
   };
 
-  const addConfirmedData = (data: ExtractDataOutput) => {
+  const addConfirmedData = (data: Record<string, any>) => {
     setSheets(prevSheets => 
       prevSheets.map(sheet => 
         sheet.id === activeSheetId 
@@ -402,23 +416,59 @@ export default function Home() {
             <p className="text-sm text-muted-foreground">
                 {sheets.length > 0 ? 'New scans will be added here. Use the menu to switch or create sheets.' : 'Create a new sheet from the menu to get started.'}
             </p>
+            {(usedFallback || confidence) && (
+              <div className="flex justify-center gap-2 mt-2">
+                {usedFallback && (
+                  <Badge variant="outline" className="gap-1 border-yellow-500 text-yellow-600">
+                    <ShieldAlert className="h-3 w-3" />
+                    Backup AI used
+                  </Badge>
+                )}
+                {confidence === 'HIGH' && (
+                  <Badge variant="outline" className="gap-1 border-green-500 text-green-600">
+                    <CheckCircle2 className="h-3 w-3" />
+                    HIGH confidence
+                  </Badge>
+                )}
+                {confidence === 'MEDIUM' && (
+                  <Badge variant="outline" className="gap-1 border-yellow-500 text-yellow-600">
+                    <AlertTriangle className="h-3 w-3" />
+                    MEDIUM confidence
+                  </Badge>
+                )}
+                {confidence === 'LOW' && (
+                  <Badge variant="outline" className="gap-1 border-red-500 text-red-600">
+                    <AlertTriangle className="h-3 w-3" />
+                    LOW confidence
+                  </Badge>
+                )}
+              </div>
+            )}
         </div>
-        <div className="flex flex-col lg:flex-row gap-8">
-          <div className="lg:w-2/5 xl:w-1/3">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column - Image Uploader */}
+          <div className="lg:col-span-1">
             <ImageUploader 
               onImageReady={handleImageReady} 
-              isLoading={isLoading} 
+              isLoading={isLoading}
+              onError={(msg) => toast({ variant: 'destructive', title: 'Unsupported File', description: msg })}
             />
           </div>
-          <div className="lg:w-3/5 xl:w-2/3">
+          
+          {/* Middle Column - Data Form */}
+          <div className="lg:col-span-1">
             <DataForm 
               initialData={currentExtractedData} 
               isLoading={isLoading}
               onSave={handleAddToSheet}
               sheetActive={!!activeSheet}
               onFormChange={setExtractionContext}
+              usedFallback={usedFallback}
             />
           </div>
+          
+          {/* Right Column - placeholder for future features */}
+          <div className="lg:col-span-1" />
         </div>
       </main>
 

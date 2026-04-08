@@ -20,6 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Sparkles, Languages, Loader2, PlusCircle } from 'lucide-react';
 import type { ExtractDataOutput } from '@/ai/schemas/form-extraction-schemas';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -44,17 +45,17 @@ const formSchema = z.object({
 });
 
 type DataFormProps = {
-  initialData: ExtractDataOutput | null;
+  initialData: ExtractDataOutput | Record<string, any> | null;
   isLoading: boolean;
-  onSave: (data: ExtractDataOutput) => void;
+  onSave: (data: ExtractDataOutput | Record<string, any>) => void;
   sheetActive: boolean;
   onFormChange: (context: { sparePartCode?: string; productDescription?: string }) => void;
+  usedFallback?: boolean;
 };
 
-export function DataForm({ initialData, isLoading, onSave, sheetActive, onFormChange }: DataFormProps) {
+export function DataForm({ initialData, isLoading, onSave, sheetActive, onFormChange, usedFallback }: DataFormProps) {
   const [isTranslating, setIsTranslating] = useState(false);
   const [language, setLanguage] = useState('en');
-  const [otherText, setOtherText] = useState(initialData?.others || '');
   const { toast } = useToast();
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -95,7 +96,6 @@ export function DataForm({ initialData, isLoading, onSave, sheetActive, onFormCh
   useEffect(() => {
     if (initialData) {
       form.reset(initialData);
-      setOtherText(initialData.others || '');
     } else {
       // Clear form when there is no data, but preserve spare part selection
       const currentSparePartCode = form.getValues('sparePartCode');
@@ -111,12 +111,11 @@ export function DataForm({ initialData, isLoading, onSave, sheetActive, onFormCh
         natureOfDefect: '',
         technicianName: '',
       });
-      setOtherText('');
     }
   }, [initialData, form]);
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    onSave(values); 
+    onSave(values);
     // After saving, clear the form fields but keep the spare part selection
     form.reset({
       ...form.getValues(),
@@ -128,7 +127,6 @@ export function DataForm({ initialData, isLoading, onSave, sheetActive, onFormCh
       natureOfDefect: '',
       technicianName: '',
     });
-    setOtherText('');
   }
   
   const handleTranslate = async () => {
@@ -136,10 +134,7 @@ export function DataForm({ initialData, isLoading, onSave, sheetActive, onFormCh
     if (!dataToTranslate) return;
 
     setIsTranslating(true);
-    // We include `otherText` for translation, but it won't be saved.
-    const fullDataToTranslate = { ...dataToTranslate, others: otherText };
-
-    const result = await translateExtractedData(fullDataToTranslate, language);
+    const result = await translateExtractedData(dataToTranslate, language);
     if (result.error) {
       toast({
         variant: 'destructive',
@@ -147,9 +142,8 @@ export function DataForm({ initialData, isLoading, onSave, sheetActive, onFormCh
         description: result.error,
       });
     } else if (result.data) {
-      const { others, ...formData } = result.data;
+      const { others: _others, ...formData } = result.data;
       form.reset(formData);
-      setOtherText(others || '');
       toast({
         title: 'Translation Successful',
         description: `Text translated to ${language}.`,
@@ -184,6 +178,25 @@ export function DataForm({ initialData, isLoading, onSave, sheetActive, onFormCh
         <p className="mt-4 text-muted-foreground">Extracting data from image...</p>
       </Card>
     )
+  }
+
+  // ── Dynamic rendering for fallback (non-fixed-schema) data ──
+  if (usedFallback && initialData) {
+    const metaKeys = ['_documentType', '_language', '_confidence', '_signatures', '_stamps'];
+    const dataEntries = Object.entries(initialData).filter(
+      ([k]) => !metaKeys.includes(k) && !k.startsWith('_')
+    );
+    const meta = initialData as Record<string, any>;
+
+    return (
+      <DynamicDataForm
+        entries={dataEntries}
+        meta={meta}
+        isLoading={isLoading}
+        sheetActive={sheetActive}
+        onSave={onSave}
+      />
+    );
   }
 
   return (
@@ -355,14 +368,6 @@ export function DataForm({ initialData, isLoading, onSave, sheetActive, onFormCh
                 </FormItem>
               )}
             />
-             {otherText && (
-              <div>
-                <Label htmlFor="others-text">Other Extracted Text (will be discarded)</Label>
-                <div id="others-text" className="mt-2 rounded-md border bg-muted p-3 text-sm text-muted-foreground min-h-[80px]">
-                  {otherText}
-                </div>
-              </div>
-            )}
           </CardContent>
           <CardFooter className="flex justify-end gap-2">
             <Button type="submit" disabled={isLoading || isTranslating || !sheetActive}>
@@ -372,6 +377,86 @@ export function DataForm({ initialData, isLoading, onSave, sheetActive, onFormCh
           </CardFooter>
         </form>
       </Form>
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────
+// Dynamic form — renders whatever fields came back from fallback extraction
+// ─────────────────────────────────────────────
+
+type DynamicDataFormProps = {
+  entries: [string, any][];
+  meta: Record<string, any>;
+  isLoading: boolean;
+  sheetActive: boolean;
+  onSave: (data: Record<string, any>) => void;
+};
+
+function DynamicDataForm({ entries, meta, isLoading, sheetActive, onSave }: DynamicDataFormProps) {
+  const [values, setValues] = useState<Record<string, string>>(() =>
+    Object.fromEntries(entries.map(([k, v]) => [k, typeof v === 'string' ? v : JSON.stringify(v)]))
+  );
+
+  const confidence = meta._confidence as string | undefined;
+
+  return (
+    <Card className="flex-1">
+      <CardHeader>
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <CardTitle className="font-headline text-2xl">Validate Data</CardTitle>
+            <CardDescription>
+              {meta._documentType || 'Document'} · {meta._language || ''}
+            </CardDescription>
+          </div>
+          {confidence && (
+            <Badge
+              variant="outline"
+              className={
+                confidence === 'HIGH'
+                  ? 'border-green-500 text-green-600'
+                  : confidence === 'MEDIUM'
+                  ? 'border-yellow-500 text-yellow-600'
+                  : 'border-red-500 text-red-600'
+              }
+            >
+              {confidence}
+            </Badge>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {entries.map(([key]) => (
+            <div key={key} className="space-y-1">
+              <Label htmlFor={`dyn-${key}`} className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                {key}
+              </Label>
+              <Input
+                id={`dyn-${key}`}
+                value={values[key] ?? ''}
+                onChange={e => setValues(prev => ({ ...prev, [key]: e.target.value }))}
+              />
+            </div>
+          ))}
+        </div>
+
+        {/* Metadata section */}
+        <div className="rounded-md border bg-muted/50 p-3 space-y-1 text-xs text-muted-foreground">
+          {meta._signatures && <p><span className="font-medium">Signatures:</span> {meta._signatures}</p>}
+          {meta._stamps && <p><span className="font-medium">Stamps:</span> {meta._stamps}</p>}
+        </div>
+      </CardContent>
+      <CardFooter className="flex justify-end">
+        <Button
+          disabled={isLoading || !sheetActive}
+          onClick={() => onSave(values)}
+        >
+          <PlusCircle className="mr-2 h-4 w-4" />
+          Add to Excel
+        </Button>
+      </CardFooter>
     </Card>
   );
 }
