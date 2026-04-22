@@ -155,21 +155,25 @@ Rules:
 - Empty fields in the document: use empty string "" as value
 
 STEP 3 — HANDLE MATHEMATICAL CONTENT:
-If the document contains equations, formulas, or mathematical expressions:
-- Capture each equation or expression as a separate key-value pair
-- Use a descriptive label as the key (e.g. "Equation 1", "Formula", "Area", "Quadratic Formula", or the label written next to it in the document)
-- Represent the value in plain text math notation:
-  - Use ^ for exponents: x^2, a^3
-  - Use / for fractions: (a+b)/c
-  - Use sqrt() for square roots: sqrt(x^2 + y^2)
-  - Use * for multiplication: 2*pi*r
-  - Use standard symbols as-is: +, -, =, ≠, ≤, ≥, ∑, ∫, π, θ, α, β, Δ
-  - For complex fractions or multi-line expressions: write them linearly, e.g. (numerator)/(denominator)
-  - Preserve the equation exactly as written — do not solve or simplify
-- If the document is primarily a math sheet (exam, worksheet, notebook):
-  - Group equations under keys like "Question 1", "Problem 2", "Step 1", etc.
-  - Capture both the question/problem AND the written answer/working if present
-  - Use "_equations" as a top-level array for all standalone equations without labels
+If the document contains equations, formulas, integrals, derivatives, summations, or scientific notation:
+- Identify the mathematical/scientific domain (e.g. "Electromagnetism", "Quantum Mechanics", "Calculus", "Thermodynamics", "Statistics", "Linear Algebra")
+- Set "_mathDomain" to that domain string
+- For each equation or expression, create an entry in the "_equations" array with:
+  - "label": a descriptive name (e.g. "Fourier Transform", "Schrödinger Equation", "Maxwell Equation 1", "Equation 1")
+  - "latex": the equation in valid KaTeX-compatible LaTeX syntax (use \\\\ for backslash in JSON)
+  - "raw": a plain-text fallback version
+- LaTeX syntax rules:
+  - Fractions: \\\\frac{numerator}{denominator}
+  - Integrals: \\\\int_{a}^{b} f(x)\\\\,dx
+  - Summations: \\\\sum_{i=1}^{n} x_i
+  - Subscripts: x_{n}, H_{2}O
+  - Superscripts: x^{2}, e^{i\\\\pi}
+  - Square roots: \\\\sqrt{x}, \\\\sqrt[n]{x}
+  - Greek letters: \\\\alpha, \\\\beta, \\\\omega, \\\\pi, \\\\Psi, \\\\nabla, \\\\partial
+  - Operators: \\\\times, \\\\cdot, \\\\pm, \\\\leq, \\\\geq, \\\\neq, \\\\infty
+  - Vectors/nabla: \\\\nabla \\\\cdot E, \\\\nabla \\\\times H
+  - Preserve equations EXACTLY as written — do NOT solve or simplify
+- Also capture any plain-text fields normally in STEP 2
 
 STEP 4 — HANDLE TABLES:
 If the document contains tabular data:
@@ -189,6 +193,8 @@ Always include these metadata fields regardless of document type:
   "LOW" = poor image quality, significant guesswork involved
 - "_signatures": "Yes - [location]" or "No"
 - "_stamps": describe any stamps/seals visible, or "" if none
+- "_mathDomain": mathematical/scientific domain if equations present, else ""
+- "_equations": array of { label, latex, raw } objects if equations present, else []
 
 OUTPUT RULES — CRITICAL:
 - Return ONLY a valid JSON object

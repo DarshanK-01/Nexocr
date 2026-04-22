@@ -7,6 +7,7 @@ import { extractDataFromImage } from '@/app/actions';
 import type { ExtractDataOutput } from '@/ai/schemas/form-extraction-schemas';
 import { ImageUploader } from '@/components/image-uploader';
 import { DataForm } from '@/components/data-form';
+import { SignaturePanel } from '@/components/signature-panel';
 import { ScanText, Download, History, Plus, Trash2, MoreVertical, Edit, ShieldAlert, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -48,6 +49,7 @@ const STORAGE_KEY = 'nexscan-sheets';
 export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [currentExtractedData, setCurrentExtractedData] = useState<Record<string, any> | null>(null);
+  const [currentDocumentImage, setCurrentDocumentImage] = useState<string | null>(null);
   const [usedFallback, setUsedFallback] = useState(false);
   const [confidence, setConfidence] = useState<string | null>(null);
   
@@ -110,6 +112,7 @@ export default function Home() {
   const handleImageReady = async (dataUrl: string) => {
     // Clear previous extraction results when a new image is uploaded
     setCurrentExtractedData(null);
+    setCurrentDocumentImage(dataUrl);
     setUsedFallback(false);
     setConfidence(null);
     
@@ -344,131 +347,79 @@ export default function Home() {
   const activeSheet = sheets.find(s => s.id === activeSheetId);
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      <header className="p-4 border-b bg-card/50 backdrop-blur-lg sticky top-0 z-20">
-        <div className="container mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <ScanText className="w-8 h-8 text-primary"/>
-            <h1 className="text-2xl font-bold font-headline text-primary">NexScan</h1>
-          </div>
-          <div className="flex items-center gap-2">
-             <Button 
-                variant="outline" 
-                onClick={() => setIsSheetOverviewOpen(true)} 
-                disabled={!activeSheet || activeSheet.data.length === 0}
-              >
-              <History className="mr-2 h-4 w-4" />
-              View Excel Sheet ({activeSheet?.data.length || 0})
-            </Button>
-            <Button onClick={exportToCSV} disabled={!activeSheet || activeSheet.data.length === 0}>
-              <Download className="mr-2 h-4 w-4" />
-              Export CSV
-            </Button>
-            
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>Sheet Management</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleOpenCreateSheetDialog}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  <span>Create New Sheet</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleOpenRenameSheetDialog} disabled={!activeSheet}>
-                  <Edit className="mr-2 h-4 w-4" />
-                  <span>Rename Current Sheet</span>
-                </DropdownMenuItem>
-                 <DropdownMenuSub>
-                  <DropdownMenuSubTrigger disabled={sheets.length === 0}>
-                    <span>Switch Sheet</span>
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuPortal>
-                    <DropdownMenuSubContent>
-                      <DropdownMenuLabel>Select a sheet</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      {sheets.map(sheet => (
-                         <DropdownMenuItem key={sheet.id} onClick={() => setActiveSheetId(sheet.id)} disabled={sheet.id === activeSheetId}>
-                          {sheet.name}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuSubContent>
-                  </DropdownMenuPortal>
-                </DropdownMenuSub>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setIsDeleteDialogOpen(true)} disabled={!activeSheet} className="text-red-500 focus:text-red-500">
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  <span>Delete Current Sheet</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-          </div>
+    <div className="h-screen flex flex-col bg-background overflow-hidden">
+      {/* ── Header ── */}
+      <header className="h-14 px-4 border-b bg-card/50 backdrop-blur-lg sticky top-0 z-20 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2">
+          <ScanText className="w-8 h-8 text-primary"/>
+          <h1 className="text-2xl font-bold font-headline text-primary">NexScan</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          {(usedFallback || confidence) && (
+            <div className="hidden md:flex items-center gap-1.5">
+              {usedFallback && <Badge variant="outline" className="gap-1 border-yellow-500 text-yellow-600"><ShieldAlert className="h-3 w-3" /> Backup AI</Badge>}
+              {confidence === 'HIGH' && <Badge variant="outline" className="gap-1 border-green-500 text-green-600"><CheckCircle2 className="h-3 w-3" /> HIGH</Badge>}
+              {confidence === 'MEDIUM' && <Badge variant="outline" className="gap-1 border-yellow-500 text-yellow-600"><AlertTriangle className="h-3 w-3" /> MEDIUM</Badge>}
+              {confidence === 'LOW' && <Badge variant="outline" className="gap-1 border-red-500 text-red-600"><AlertTriangle className="h-3 w-3" /> LOW</Badge>}
+            </div>
+          )}
+          <Button variant="outline" onClick={() => setIsSheetOverviewOpen(true)} disabled={!activeSheet || activeSheet.data.length === 0}>
+            <History className="mr-2 h-4 w-4" /> View Excel Sheet ({activeSheet?.data.length || 0})
+          </Button>
+          <Button onClick={exportToCSV} disabled={!activeSheet || activeSheet.data.length === 0}>
+            <Download className="mr-2 h-4 w-4" /> Export CSV
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Sheet Management</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleOpenCreateSheetDialog}><Plus className="mr-2 h-4 w-4" /> Create New Sheet</DropdownMenuItem>
+              <DropdownMenuItem onClick={handleOpenRenameSheetDialog} disabled={!activeSheet}><Edit className="mr-2 h-4 w-4" /> Rename Current Sheet</DropdownMenuItem>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger disabled={sheets.length === 0}>Switch Sheet</DropdownMenuSubTrigger>
+                <DropdownMenuPortal>
+                  <DropdownMenuSubContent>
+                    <DropdownMenuLabel>Select a sheet</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {sheets.map(s => (
+                      <DropdownMenuItem key={s.id} onClick={() => setActiveSheetId(s.id)} disabled={s.id === activeSheetId}>{s.name}</DropdownMenuItem>
+                    ))}
+                  </DropdownMenuSubContent>
+                </DropdownMenuPortal>
+              </DropdownMenuSub>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setIsDeleteDialogOpen(true)} disabled={!activeSheet} className="text-red-500 focus:text-red-500">
+                <Trash2 className="mr-2 h-4 w-4" /> Delete Current Sheet
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
-      
-      <main className="flex-1 container mx-auto p-4 md:p-8 space-y-8">
-        <div className="text-center">
-            <h2 className="text-lg font-semibold">Active Sheet: <span className="font-bold text-primary">{activeSheet?.name || 'No active sheet'}</span></h2>
-            <p className="text-sm text-muted-foreground">
-                {sheets.length > 0 ? 'New scans will be added here. Use the menu to switch or create sheets.' : 'Create a new sheet from the menu to get started.'}
-            </p>
-            {(usedFallback || confidence) && (
-              <div className="flex justify-center gap-2 mt-2">
-                {usedFallback && (
-                  <Badge variant="outline" className="gap-1 border-yellow-500 text-yellow-600">
-                    <ShieldAlert className="h-3 w-3" />
-                    Backup AI used
-                  </Badge>
-                )}
-                {confidence === 'HIGH' && (
-                  <Badge variant="outline" className="gap-1 border-green-500 text-green-600">
-                    <CheckCircle2 className="h-3 w-3" />
-                    HIGH confidence
-                  </Badge>
-                )}
-                {confidence === 'MEDIUM' && (
-                  <Badge variant="outline" className="gap-1 border-yellow-500 text-yellow-600">
-                    <AlertTriangle className="h-3 w-3" />
-                    MEDIUM confidence
-                  </Badge>
-                )}
-                {confidence === 'LOW' && (
-                  <Badge variant="outline" className="gap-1 border-red-500 text-red-600">
-                    <AlertTriangle className="h-3 w-3" />
-                    LOW confidence
-                  </Badge>
-                )}
-              </div>
-            )}
+
+      {/* ── Main 3-column grid — fills remaining height ── */}
+      <main className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-4 p-4">
+        <div className="lg:col-span-1 min-h-0 flex flex-col">
+          <ImageUploader
+            onImageReady={handleImageReady}
+            isLoading={isLoading}
+            onError={(msg) => toast({ variant: 'destructive', title: 'Unsupported File', description: msg })}
+          />
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Image Uploader */}
-          <div className="lg:col-span-1">
-            <ImageUploader 
-              onImageReady={handleImageReady} 
-              isLoading={isLoading}
-              onError={(msg) => toast({ variant: 'destructive', title: 'Unsupported File', description: msg })}
-            />
-          </div>
-          
-          {/* Middle Column - Data Form */}
-          <div className="lg:col-span-1">
-            <DataForm 
-              initialData={currentExtractedData} 
-              isLoading={isLoading}
-              onSave={handleAddToSheet}
-              sheetActive={!!activeSheet}
-              onFormChange={setExtractionContext}
-              usedFallback={usedFallback}
-            />
-          </div>
-          
-          {/* Right Column - placeholder for future features */}
-          <div className="lg:col-span-1" />
+        <div className="lg:col-span-1 min-h-0 flex flex-col">
+          <DataForm
+            initialData={currentExtractedData}
+            isLoading={isLoading}
+            onSave={handleAddToSheet}
+            sheetActive={!!activeSheet}
+            onFormChange={setExtractionContext}
+            usedFallback={usedFallback}
+          />
+        </div>
+        <div className="lg:col-span-1 min-h-0 flex flex-col">
+          <SignaturePanel imageDataUrl={currentDocumentImage} />
         </div>
       </main>
 
@@ -487,14 +438,11 @@ export default function Home() {
         />
       )}
 
-      {/* Delete Sheet Dialog */}
-       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the sheet "{activeSheet?.name}" and all its data from this browser.
-            </AlertDialogDescription>
+            <AlertDialogDescription>This will permanently delete "{activeSheet?.name}" and all its data.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -503,29 +451,15 @@ export default function Home() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Create Sheet Dialog */}
       <AlertDialog open={isCreateSheetDialogOpen} onOpenChange={setIsCreateSheetDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Create New Sheet</AlertDialogTitle>
-            <AlertDialogDescription>
-              Please enter a name for your new sheet.
-            </AlertDialogDescription>
+            <AlertDialogDescription>Enter a name for your new sheet.</AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="sheet-name" className="text-right">
-                Name
-              </Label>
-              <Input
-                id="sheet-name"
-                value={newSheetName}
-                onChange={(e) => setNewSheetName(e.target.value)}
-                className="col-span-3"
-                autoFocus
-                onKeyDown={(e) => e.key === 'Enter' && handleCreateNewSheet()}
-              />
-            </div>
+          <div className="py-3">
+            <Input id="sheet-name" value={newSheetName} onChange={(e) => setNewSheetName(e.target.value)}
+              placeholder="Sheet name..." autoFocus onKeyDown={(e) => e.key === 'Enter' && handleCreateNewSheet()} />
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -534,29 +468,15 @@ export default function Home() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Rename Sheet Dialog */}
       <AlertDialog open={isRenameSheetDialogOpen} onOpenChange={setIsRenameSheetDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Rename Sheet</AlertDialogTitle>
-            <AlertDialogDescription>
-              Enter a new name for the sheet "{sheets.find(s => s.id === activeSheetId)?.name}".
-            </AlertDialogDescription>
+            <AlertDialogDescription>New name for "{sheets.find(s => s.id === activeSheetId)?.name}".</AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="rename-sheet-name" className="text-right">
-                Name
-              </Label>
-              <Input
-                id="rename-sheet-name"
-                value={newSheetName}
-                onChange={(e) => setNewSheetName(e.target.value)}
-                className="col-span-3"
-                autoFocus
-                onKeyDown={(e) => e.key === 'Enter' && handleRenameSheet()}
-              />
-            </div>
+          <div className="py-3">
+            <Input id="rename-sheet-name" value={newSheetName} onChange={(e) => setNewSheetName(e.target.value)}
+              autoFocus onKeyDown={(e) => e.key === 'Enter' && handleRenameSheet()} />
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -565,20 +485,14 @@ export default function Home() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Duplicate Entry Warning Dialog */}
       <AlertDialog open={isDuplicateWarningOpen} onOpenChange={setIsDuplicateWarningOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Duplicate Entry Warning</AlertDialogTitle>
-            <AlertDialogDescription>
-              An entry with the Product Sr No. "{pendingData?.productSrNo}" already exists in this sheet. Are you sure you want to add it again?
-            </AlertDialogDescription>
+            <AlertDialogDescription>Product Sr No. "{pendingData?.productSrNo}" already exists. Add anyway?</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => {
-              setIsDuplicateWarningOpen(false);
-              setPendingData(null);
-            }}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel onClick={() => { setIsDuplicateWarningOpen(false); setPendingData(null); }}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={confirmAddDuplicate}>Add Anyway</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
