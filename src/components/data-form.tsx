@@ -275,12 +275,6 @@ function DynamicDataForm({ entries, meta, isLoading, sheetActive, onSave }: Dyna
               ))}
             </div>
           )}
-          {(meta._signatures || meta._stamps) && (
-            <div className="rounded-md border bg-muted/50 p-3 space-y-1 text-xs text-muted-foreground">
-              {meta._signatures && <p><span className="font-medium">Signatures:</span> {meta._signatures}</p>}
-              {meta._stamps && <p><span className="font-medium">Stamps:</span> {meta._stamps}</p>}
-            </div>
-          )}
         </CardContent>
       </div>
       <CardFooter className="shrink-0 flex justify-end">

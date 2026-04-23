@@ -7,7 +7,6 @@ import { extractDataFromImage } from '@/app/actions';
 import type { ExtractDataOutput } from '@/ai/schemas/form-extraction-schemas';
 import { ImageUploader } from '@/components/image-uploader';
 import { DataForm } from '@/components/data-form';
-import { SignaturePanel } from '@/components/signature-panel';
 import { ScanText, Download, History, Plus, Trash2, MoreVertical, Edit, ShieldAlert, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -49,7 +48,6 @@ const STORAGE_KEY = 'nexscan-sheets';
 export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [currentExtractedData, setCurrentExtractedData] = useState<Record<string, any> | null>(null);
-  const [currentDocumentImage, setCurrentDocumentImage] = useState<string | null>(null);
   const [usedFallback, setUsedFallback] = useState(false);
   const [confidence, setConfidence] = useState<string | null>(null);
   
@@ -112,7 +110,6 @@ export default function Home() {
   const handleImageReady = async (dataUrl: string) => {
     // Clear previous extraction results when a new image is uploaded
     setCurrentExtractedData(null);
-    setCurrentDocumentImage(dataUrl);
     setUsedFallback(false);
     setConfidence(null);
     
@@ -399,8 +396,8 @@ export default function Home() {
         </div>
       </header>
 
-      {/* ── Main 3-column grid — fills remaining height ── */}
-      <main className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-3 gap-4 p-4">
+      {/* ── Main 2-column grid — fills remaining height ── */}
+      <main className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-4 p-4">
         <div className="lg:col-span-1 min-h-0 flex flex-col">
           <ImageUploader
             onImageReady={handleImageReady}
@@ -417,9 +414,6 @@ export default function Home() {
             onFormChange={setExtractionContext}
             usedFallback={usedFallback}
           />
-        </div>
-        <div className="lg:col-span-1 min-h-0 flex flex-col">
-          <SignaturePanel imageDataUrl={currentDocumentImage} />
         </div>
       </main>
 
